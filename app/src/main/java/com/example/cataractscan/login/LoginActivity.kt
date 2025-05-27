@@ -198,12 +198,8 @@ class LoginActivity : AppCompatActivity() {
                 if (response.isSuccessful && response.body() != null) {
                     val loginResponse = response.body()!!
 
-                    // Save token
-                    preferenceManager.saveToken(loginResponse.token)
-                    preferenceManager.saveLoginCredentials(email, password)
-
-                    showToast("Login berhasil")
-                    navigateToMain()
+                    // Call the new handleLoginSuccess method
+                    handleLoginSuccess(loginResponse, email)
                 } else {
                     val errorMessage = when (response.code()) {
                         400 -> "Data login tidak valid"
@@ -223,6 +219,55 @@ class LoginActivity : AppCompatActivity() {
                     else -> "Terjadi kesalahan: ${e.message}"
                 }
                 showToast(errorMessage)
+            }
+        }
+    }
+
+    // NEW METHOD: Handle login success with profile loading
+    private fun handleLoginSuccess(loginResponse: LoginResponse, email: String) {
+        // Simpan token
+        preferenceManager.saveToken(loginResponse.token)
+
+        // Simpan email yang digunakan untuk login
+        preferenceManager.saveEmail(email)
+
+        // Setelah login berhasil, ambil data profil lengkap dari API
+        loadUserProfileAfterLogin()
+
+        showToast("Login berhasil")
+
+        // Navigate to main activity
+        navigateToMain()
+    }
+
+    // NEW METHOD: Load user profile after successful login
+    private fun loadUserProfileAfterLogin() {
+        val token = preferenceManager.getToken()
+        if (token.isNullOrEmpty()) return
+
+        lifecycleScope.launch {
+            try {
+                // Panggil endpoint getUserProfile untuk mendapatkan data profil
+                val response = ApiClient.apiService.getUserProfile("Bearer $token")
+
+                if (response.isSuccessful && response.body() != null) {
+                    val profileResponse = response.body()!!
+                    val userProfileData = profileResponse.user
+
+                    // Simpan data profil ke preferences
+                    preferenceManager.saveUserProfileData(userProfileData)
+
+                    // Optional: Atau bisa juga panggil endpoint getProfileEdit untuk data lebih lengkap
+                    // val profileEditResponse = ApiClient.apiService.getProfileEdit("Bearer $token")
+                    // if (profileEditResponse.isSuccessful && profileEditResponse.body() != null) {
+                    //     val profileEditData = profileEditResponse.body()!!.user
+                    //     preferenceManager.saveUserProfile(profileEditData)
+                    // }
+                }
+            } catch (e: Exception) {
+                // Handle error silently, user can still proceed to main screen
+                // Profile data will be loaded again when they access home fragment
+                // Log error for debugging purposes if needed
             }
         }
     }

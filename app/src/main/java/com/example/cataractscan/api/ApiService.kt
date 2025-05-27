@@ -5,7 +5,7 @@ import com.example.cataractscan.api.models.AnalysisResult
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
-import com.google.gson.annotations.SerializedName // Import SerializedName
+import com.google.gson.annotations.SerializedName
 
 interface ApiService {
     // User Authentication
@@ -33,17 +33,17 @@ interface ApiService {
     ): Response<ChangePasswordResponse>
 
     // Reset Password (using token from email link)
-    @POST("auth/reset-password") // Tambahkan endpoint ini kembali
+    @POST("auth/reset-password")
     suspend fun resetPassword(
         @Query("token") token: String,
         @Body request: ResetPasswordRequest
     ): Response<ResetPasswordResponse>
 
-    // User Profile
-    @GET("user")
+    // User Profile - Updated endpoint to match your API
+    @GET("auth/user")
     suspend fun getUserProfile(
         @Header("Authorization") authorization: String // Pass "Bearer {token}"
-    ): Response<User>
+    ): Response<UserProfileResponse>
 
     // Logout
     @POST("auth/logout")
@@ -67,11 +67,11 @@ interface ApiService {
         @Part image: MultipartBody.Part
     ): Response<AnalysisResult>
 
-    // Get Profile Edit (New endpoint)
-    @GET("auth/profile/edit")
+    // Get Profile Edit
+    @PATCH("auth/profile/edit")
     suspend fun getProfileEdit(
         @Header("Authorization") token: String
-    ): Response<ProfileResponse>
+    ): Response<ProfileEditResponse>
 
     // History endpoint
     @GET("user/dashboard/history")
@@ -97,13 +97,11 @@ data class RegisterRequest(
     val retype_password: String
 )
 
-// KOREKSI DI SINI: ChangePasswordRequest hanya oldPassword dan newPassword
 data class ChangePasswordRequest(
     val newPassword: String,
     val retypePassword: String
 )
 
-// Tambahkan kembali ResetPasswordRequest
 data class ResetPasswordRequest(
     val newPassword: String
 )
@@ -140,12 +138,10 @@ data class ForgotPasswordResponse(
     val resetLink: String? = null
 )
 
-// Tambahkan kembali ChangePasswordResponse yang lebih sesuai
 data class ChangePasswordResponse(
-    val message: String // Cukup message, sesuai respons sukses
+    val message: String
 )
 
-// Tambahkan kembali ResetPasswordResponse
 data class ResetPasswordResponse(
     val message: String
 )
@@ -165,17 +161,46 @@ data class HistoryItem(
     val photoUrl: String
 )
 
-// Profile Response dan UserProfile yang baru ditambahkan
+// Profile Response classes - Updated to match API response
 data class ProfileResponse(
     val message: String,
     val user: UserProfile
+)
+
+// ProfileEditResponse for getProfileEdit endpoint
+data class ProfileEditResponse(
+    val message: String,
+    val user: ProfileEditUser
+)
+
+data class ProfileEditUser(
+    val id: Int,
+    val username: String,
+    val email: String,
+    @SerializedName("image_link")
+    val imageLink: String?,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+// UserProfileResponse for getUserProfile endpoint
+data class UserProfileResponse(
+    val message: String,
+    val user: UserProfileData
+)
+
+data class UserProfileData(
+    val id: Int,
+    val username: String,
+    @SerializedName("image_link")
+    val imageLink: String?
 )
 
 data class UserProfile(
     val id: Int,
     val username: String,
     val email: String,
-    @SerializedName("image_link") // Pastikan ada import com.google.gson.annotations.SerializedName
+    @SerializedName("image_link")
     val imageLink: String?,
     @SerializedName("createdAt")
     val createdAt: String,

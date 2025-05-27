@@ -23,25 +23,30 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
 import java.io.FileOutputStream
+import android.util.Log // Import Log
 
 class EditProfileActivity : AppCompatActivity() {
     private lateinit var binding: ActivityEditProfileBinding
     private lateinit var preferenceManager: PreferenceManager
     private var selectedImageUri: Uri? = null
 
+    private val TAG = "EditProfileActivity" // Tag untuk Logcat
+
     private val pickImage = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 selectedImageUri = uri
                 binding.ivProfile.setImageURI(uri)
-            }
+                Log.d(TAG, "Image selected: $uri")
+            } ?: Log.w(TAG, "Image selection data is null.")
+        } else {
+            Log.d(TAG, "Image selection cancelled or failed. Result code: ${result.resultCode}")
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Enable full screen mode
         enableFullScreenMode()
 
         binding = ActivityEditProfileBinding.inflate(layoutInflater)
@@ -68,17 +73,17 @@ class EditProfileActivity : AppCompatActivity() {
     }
 
     private fun loadUserData() {
-        // Load user data from preferences
         val name = preferenceManager.getName() ?: ""
         val email = preferenceManager.getEmail() ?: ""
         val profileImage = preferenceManager.getProfileImage()
+
+        Log.d(TAG, "Loading user data - Name: $name, Email: $email, Image: $profileImage")
 
         binding.apply {
             etName.setText(name)
             etEmail.setText(email)
             etAddress.setText("") // Address tidak ada di API response, bisa di-handle sesuai kebutuhan
 
-            // Load profile image dengan Glide
             Glide.with(this@EditProfileActivity)
                 .load(profileImage)
                 .apply(RequestOptions
@@ -111,21 +116,19 @@ class EditProfileActivity : AppCompatActivity() {
     private fun saveUserData() {
         val name = binding.etName.text.toString().trim()
         val email = binding.etEmail.text.toString().trim()
-        val address = binding.etAddress.text.toString().trim()
+        val address = binding.etAddress.text.toString().trim() // Anda mungkin ingin menyimpan ini juga
 
         if (validateInput(name, email)) {
-            // Show loading
             setLoading(true)
-
-            // Update profile via API
-            updateProfileViaAPI()
+            updateProfileViaAPI(name, email, address) // Kirim juga data teks jika ingin diupdate
         }
     }
 
-    private fun updateProfileViaAPI() {
+    private fun updateProfileViaAPI(name: String, email: String, address: String) { // Terima parameter teks
         val token = preferenceManager.getToken()
         if (token.isNullOrEmpty()) {
             showToast("Session expired, please login again")
+            setLoading(false) // Pastikan loading dimatikan
             finish()
             return
         }
@@ -134,50 +137,92 @@ class EditProfileActivity : AppCompatActivity() {
             try {
                 var imagePart: MultipartBody.Part? = null
 
-                // Prepare image if selected
                 selectedImageUri?.let { uri ->
+                    Log.d(TAG, "Processing selected image URI: $uri")
                     val imageFile = createFileFromUri(uri)
-                    val requestFile = imageFile.asRequestBody("image/*".toMediaTypeOrNull())
-                    imagePart = MultipartBody.Part.createFormData("image", imageFile.name, requestFile)
+                    Log.d(TAG, "Created image file: ${imageFile.absolutePath}, size: ${imageFile.length()} bytes")
+
+                    if (imageFile.length() == 0L) {
+                        Log.e(TAG, "Image file is empty after creation!")
+                        showToast("Gagal mengunggah: File gambar kosong.")
+                        setLoading(false)
+                        return@launch // Hentikan coroutine jika file kosong
+                    }
+
+                    val mediaType = contentResolver.getType(uri)?.toMediaTypeOrNull() // Dapatkan MIME type dari ContentResolver
+                        ?: "image/*".toMediaTypeOrNull() // Fallback jika tidak ditemukan
+
+                    if (mediaType == null) {
+                        Log.e(TAG, "Could not determine MediaType for image URI: $uri")
+                        showToast("Gagal mengunggah: Tipe gambar tidak didukung.")
+                        setLoading(false)
+                        return@launch
+                    }
+
+                    val requestFile = imageFile.asRequestBody(mediaType)
+                    imagePart = MultipartBody.Part.createFormData("image", imageFile.name, requestFile) // "image" adalah nama field yang diharapkan backend
+                    Log.d(TAG, "Multipart image part created. Filename: ${imageFile.name}, MediaType: $mediaType")
+                } ?: run {
+                    Log.d(TAG, "No new image selected. Sending update without image part.")
                 }
 
-                // Call API
-                val response = ApiClient.apiService.updateProfile("Bearer $token", imagePart)
+                // Jika Anda juga ingin mengirim data teks (nama, email, alamat), Anda perlu menambahkannya sebagai part terpisah
+                // atau mengubah endpoint backend agar menerima JSON + Multipart (jarang)
+                // Jika backend Anda mengharapkan semua data dalam satu form-data multipart:
+                // val namePart = name.toRequestBody("text/plain".toMediaTypeOrNull())
+                // val emailPart = email.toRequestBody("text/plain".toMediaTypeOrNull())
+                // val addressPart = address.toRequestBody("text/plain".toMediaTypeOrNull())
+
+                // Panggil API
+                // Asumsi: updateProfile menerima MultipartBody.Part saja untuk gambar.
+                // Jika Anda juga perlu mengirim data teks, API Anda mungkin perlu diubah
+                // atau Anda perlu mengirimnya sebagai part terpisah
+                val response = ApiClient.apiService.updateProfile("Bearer $token", imagePart) // Hanya mengirim imagePart
 
                 setLoading(false)
 
                 if (response.isSuccessful && response.body() != null) {
                     val responseBody = response.body()!!
+                    Log.d(TAG, "Profile update successful. Message: ${responseBody.message}, User: ${responseBody.user}")
 
                     // Update local preferences with new data
-                    preferenceManager.saveUserProfile(responseBody.user)
+                    // Asumsi responseBody.user adalah model User atau UserProfile yang bisa disimpan
+                    responseBody.user?.let { updatedUser -> // Periksa jika user tidak null
+                        preferenceManager.saveUserProfile(updatedUser) // Simpan User model
+                        // Atau jika Anda menggunakan UserProfile: preferenceManager.saveUserProfile(updatedUser.toUserProfile())
+                    }
 
-                    // Save additional local data (address) to local preferences
+                    // Simpan data alamat secara lokal jika tidak dikirim ke API
                     val sharedPrefs = getSharedPreferences("MyPrefs", MODE_PRIVATE)
                     sharedPrefs.edit().apply {
-                        putString("address", binding.etAddress.text.toString().trim())
+                        putString("address", address) // Simpan alamat yang diinput
                         apply()
                     }
 
                     showToast("Profile updated successfully")
                     finish()
                 } else {
-                    showToast("Failed to update profile")
+                    val errorBody = response.errorBody()?.string()
+                    Log.e(TAG, "Failed to update profile. Code: ${response.code()}, Error: $errorBody")
+                    showToast("Failed to update profile: ${response.code()}")
                 }
             } catch (e: Exception) {
                 setLoading(false)
+                Log.e(TAG, "Exception during profile update: ${e.message}", e)
                 showToast("Error: ${e.message}")
             }
         }
     }
 
     private fun createFileFromUri(uri: Uri): File {
-        val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, uri)
-        val file = File(cacheDir, "profile_${System.currentTimeMillis()}.jpg")
-        val outputStream = FileOutputStream(file)
-        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, outputStream)
-        outputStream.flush()
-        outputStream.close()
+        // Menggunakan ContentResolver untuk membaca stream dan menulis ke file cache
+        val fileName = "profile_${System.currentTimeMillis()}.jpg"
+        val file = File(cacheDir, fileName)
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            FileOutputStream(file).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+        }
         return file
     }
 

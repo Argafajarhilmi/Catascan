@@ -6,10 +6,15 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
 import com.example.cataractscan.R
 import com.example.cataractscan.databinding.FragmentHomeBinding
 import com.example.cataractscan.utils.PreferenceManager
+import com.example.cataractscan.api.ApiClient
+import kotlinx.coroutines.launch
 
 class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
@@ -35,18 +40,101 @@ class HomeFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         preferenceManager = PreferenceManager(requireContext())
 
-        // Display user information
-        binding.tvEmail.text = preferenceManager.getEmail()
+        // Setup initial UI with cached data
+        setupInitialUI()
 
-        // Set welcome text
-        binding.tvWelcome.text = "Selamat datang..."
+        // Load fresh user profile data from API
+        loadUserProfile()
+
+        // Setup card click listeners
+        setupCardClickListeners()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh profile data when returning to this fragment
+        loadUserProfile()
+    }
+
+    private fun setupInitialUI() {
+        // Display cached user information from preferences
+        val email = preferenceManager.getEmail() ?: "email@example.com"
+        val username = preferenceManager.getUsername() ?: preferenceManager.getName() ?: "User"
+        val profileImage = preferenceManager.getProfileImage()
+
+        // Set email
+        binding.tvEmail.text = email
+
+        // Set welcome text with username
+        binding.tvWelcome.text = "Selamat datang, $username!"
 
         // Activate marquee
         binding.tvWelcome.isSelected = true
         binding.tvWelcome.requestFocus()  // Request focus for marquee to work
 
-        // Setup card click listeners
-        setupCardClickListeners()
+        // Load profile image with Glide using the correct ID from your layout
+        profileImage?.let { imageUrl ->
+            Glide.with(this)
+                .load(imageUrl)
+                .apply(RequestOptions
+                    .circleCropTransform()
+                    .placeholder(R.drawable.splash_icon)
+                    .error(R.drawable.splash_icon))
+                .into(binding.profileImage) // ID dari layout XML Anda
+        }
+    }
+
+    private fun loadUserProfile() {
+        val token = preferenceManager.getToken()
+        if (token.isNullOrEmpty()) {
+            return
+        }
+
+        lifecycleScope.launch {
+            try {
+                // Call getUserProfile endpoint to get fresh data
+                val response = ApiClient.apiService.getUserProfile("Bearer $token")
+
+                if (response.isSuccessful && response.body() != null) {
+                    val profileResponse = response.body()!!
+                    val userProfileData = profileResponse.user
+
+                    // Update UI with fresh data from API
+                    val currentEmail = preferenceManager.getEmail()
+                    if (currentEmail != null) {
+                        binding.tvEmail.text = currentEmail
+                    }
+
+                    // Update welcome message with username
+                    binding.tvWelcome.text = "Selamat datang, ${userProfileData.username}!"
+
+                    // Load profile image with Glide using the correct ID
+                    userProfileData.imageLink?.let { imageUrl ->
+                        Glide.with(this@HomeFragment)
+                            .load(imageUrl)
+                            .apply(RequestOptions
+                                .circleCropTransform()
+                                .placeholder(R.drawable.splash_icon)
+                                .error(R.drawable.splash_icon))
+                            .into(binding.profileImage) // ID dari layout XML Anda
+                    }
+
+                    // Update preferences with latest username and image
+                    preferenceManager.saveUserProfileData(
+                        userProfileData.id,
+                        userProfileData.username,
+                        userProfileData.imageLink
+                    )
+
+                } else {
+                    // Handle API error silently or show subtle error
+                    // Don't show toast to avoid disrupting user experience
+                }
+            } catch (e: Exception) {
+                // Handle network error silently
+                // Use cached data that's already displayed
+            }
+        }
     }
 
     private fun setupCardClickListeners() {
