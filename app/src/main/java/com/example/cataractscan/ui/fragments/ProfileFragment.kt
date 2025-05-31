@@ -19,8 +19,6 @@ import com.example.cataractscan.utils.PreferenceManager
 import com.example.cataractscan.api.ApiClient
 import com.example.cataractscan.api.ProfileEditUser
 import com.example.cataractscan.login.ChangePasswordActivity
-// Import UserProfile dari package api Anda (PASTIKAN INI YANG DIGUNAKAN)
-
 import kotlinx.coroutines.launch
 
 class ProfileFragment : Fragment() {
@@ -44,9 +42,9 @@ class ProfileFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         preferenceManager = PreferenceManager(requireContext())
 
-        setupUI() // Panggil setupUI di sini untuk menampilkan data awal dari preferences
+        setupUI() // Display cached data first
         setupListeners()
-        loadUserProfile() // Panggil loadUserProfile untuk memuat data terbaru dari API
+        loadUserProfile() // Load fresh data from API
     }
 
     override fun onResume() {
@@ -56,16 +54,20 @@ class ProfileFragment : Fragment() {
     }
 
     private fun setupUI() {
-        // Ambil data dari preferences (yang mungkin sudah ada dari sesi sebelumnya)
+        // Display cached user information from preferences
         val username = preferenceManager.getUsername() ?: "User"
         val email = preferenceManager.getEmail() ?: "email@example.com"
         val photoUrl = preferenceManager.getProfileImage()
 
-        Log.d(TAG, "Setting up UI - username: $username, photoUrl: $photoUrl")
+        Log.d(TAG, "Setting up UI - username: $username, email: $email, photoUrl: $photoUrl")
 
-        // Set text fields
-        binding.tvUsername.text = username
-        // binding.tvEmailDetail.text = email // Jika ada TextView untuk email di profil
+        // Set CataScan label - memastikan label muncul
+        binding.tvCatascanLabel.text = "CataScan"
+        binding.tvCatascanLabel.visibility = View.VISIBLE
+
+        // Set username and email
+        binding.tvUsernameDetail.text = username
+        binding.tvEmailDetail.text = email // Make sure you have this TextView in your layout
 
         // Load profile image with Glide
         loadProfileImage(photoUrl)
@@ -93,20 +95,20 @@ class ProfileFragment : Fragment() {
 
         lifecycleScope.launch {
             try {
-                // Panggil endpoint getProfileEdit untuk mendapatkan UserProfile
+                // Use getProfileEdit endpoint to get complete user data including email
                 val response = ApiClient.apiService.getProfileEdit("Bearer $token")
 
                 if (response.isSuccessful && response.body() != null) {
                     val profileResponse = response.body()!!
-                    val userProfile = profileResponse.user // Ambil objek UserProfile
+                    val userProfile = profileResponse.user
 
-                    Log.d(TAG, "Profile loaded successfully from API: ${userProfile.username}, imageLink: ${userProfile.imageLink}")
+                    Log.d(TAG, "Profile loaded successfully from API: username=${userProfile.username}, email=${userProfile.email}, imageLink=${userProfile.imageLink}")
 
-                    // Update UI dengan data terbaru dari API
-                    updateUIWithProfileData(userProfile) // <--- Tipe parameter diubah
+                    // Update UI with fresh data from API
+                    updateUIWithProfileData(userProfile)
 
-                    // Simpan profile ke preferences
-                    saveProfileToPreferences(userProfile) // <--- Tipe parameter diubah
+                    // Save profile to preferences
+                    saveProfileToPreferences(userProfile)
 
                 } else {
                     Log.e(TAG, "Failed to load profile: ${response.code()}")
@@ -119,35 +121,38 @@ class ProfileFragment : Fragment() {
         }
     }
 
-    // Ubah tipe parameter dari ProfileEditUser menjadi UserProfile
-    private fun updateUIWithProfileData(userProfile: ProfileEditUser) { // <--- KOREKSI DI SINI
-        Log.d(TAG, "Updating UI with profile data: ${userProfile.username}")
+    private fun updateUIWithProfileData(userProfile: ProfileEditUser) {
+        Log.d(TAG, "Updating UI with profile data: username=${userProfile.username}, email=${userProfile.email}")
+
+        // Update CataScan label - refresh saat data profile di-update
+        binding.tvCatascanLabel.text = "CataScan"
+        binding.tvCatascanLabel.visibility = View.VISIBLE
 
         // Update username
-        binding.tvUsername.text = userProfile.username
+        binding.tvUsernameDetail.text = userProfile.username
+
+        // Update email - display email from API response
+        binding.tvEmailDetail.text = userProfile.email
 
         // Load profile image
         loadProfileImage(userProfile.imageLink)
     }
 
-    // Ubah tipe parameter dari ProfileEditUser menjadi UserProfile
-    private fun saveProfileToPreferences(userProfile: ProfileEditUser) { // <--- KOREKSI DI SINI
+    private fun saveProfileToPreferences(userProfile: ProfileEditUser) {
         Log.d(TAG, "Attempting to save profile to preferences...")
 
         try {
-            // Panggil metode saveUserProfile yang menerima UserProfile
+            // Save profile data to preferences
             preferenceManager.saveUserProfile(userProfile)
-            Log.d(TAG, "Profile saved successfully using saveUserProfile(UserProfile) method")
+            Log.d(TAG, "Profile saved successfully using saveUserProfile method")
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving profile using saveUserProfile(UserProfile) method: ${e.message}")
+            Log.e(TAG, "Error saving profile using saveUserProfile method: ${e.message}")
 
-            // Fallback: Simpan secara manual jika ada masalah dengan overload method
+            // Fallback: Save manually if there's an issue with the overload method
             Log.d(TAG, "Saving profile manually using individual methods as fallback...")
             try {
                 preferenceManager.saveUsername(userProfile.username)
-                if (!userProfile.email.isNullOrEmpty()) {
-                    preferenceManager.saveEmail(userProfile.email)
-                }
+                preferenceManager.saveEmail(userProfile.email)
                 if (!userProfile.imageLink.isNullOrEmpty()) {
                     preferenceManager.saveProfileImage(userProfile.imageLink)
                 } else {
@@ -159,14 +164,15 @@ class ProfileFragment : Fragment() {
             }
         }
 
-        // Verifikasi bahwa data telah disimpan
+        // Verify that data has been saved
         verifyProfileSaved()
     }
 
     private fun verifyProfileSaved() {
         val savedUsername = preferenceManager.getUsername()
+        val savedEmail = preferenceManager.getEmail()
         val savedImageUrl = preferenceManager.getProfileImage()
-        Log.d(TAG, "Verification - saved username: $savedUsername, saved image: $savedImageUrl")
+        Log.d(TAG, "Verification - saved username: $savedUsername, saved email: $savedEmail, saved image: $savedImageUrl")
     }
 
     private fun setupListeners() {
@@ -193,6 +199,11 @@ class ProfileFragment : Fragment() {
         // Logout button
         binding.btnLogout.setOnClickListener {
             handleLogout()
+        }
+
+        // Optional: Tambahkan click listener untuk CataScan label jika diperlukan
+        binding.tvCatascanLabel.setOnClickListener {
+            Toast.makeText(requireContext(), "CataScan - Aplikasi Deteksi Katarak", Toast.LENGTH_SHORT).show()
         }
     }
 

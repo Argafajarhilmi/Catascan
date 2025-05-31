@@ -72,7 +72,6 @@ class HistoryAdapter(
             binding.tvExplanation.text = item.explanation
 
             // Set analysis ID
-            binding.tvAnalysisId.text = "Analysis #${item.id}"
 
             // Format and set date/time
             try {

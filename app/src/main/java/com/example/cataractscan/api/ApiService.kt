@@ -128,9 +128,22 @@ data class LogoutResponse(
     val message: String
 )
 
+// UPDATED: ProfileUpdateResponse data class
 data class ProfileUpdateResponse(
     val message: String,
-    val user: User
+    val user: UserProfileUpdate
+)
+
+data class UserProfileUpdate(
+    val id: Int,
+    val username: String,
+    val email: String,
+    @SerializedName("image_link")
+    val imageLink: String?,
+    @SerializedName("createdAt")
+    val createdAt: String,
+    @SerializedName("updatedAt")
+    val updatedAt: String
 )
 
 data class ForgotPasswordResponse(

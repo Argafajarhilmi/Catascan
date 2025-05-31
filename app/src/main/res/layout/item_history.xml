@@ -78,19 +78,7 @@
             app:layout_constraintTop_toBottomOf="@id/tvPrediction"
             tools:text="Tidak ditemukan indikasi katarak pada gambar mata yang dianalisis" />
 
-        <TextView
-            android:id="@+id/tvAnalysisId"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="@font/poppinsregular"
-            android:textColor="@color/black"
-            android:textSize="12sp"
-            android:alpha="0.5"
-            app:layout_constraintEnd_toEndOf="@id/tvExplanation"
-            app:layout_constraintStart_toStartOf="@id/tvExplanation"
-            app:layout_constraintTop_toBottomOf="@id/tvExplanation"
-            tools:text="Analysis #143" />
+
 
         <!-- Date -->
         <TextView

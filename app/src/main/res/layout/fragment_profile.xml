@@ -56,7 +56,7 @@
                     app:layout_constraintTop_toBottomOf="@id/tvProfileTitle" />
 
                 <TextView
-                    android:id="@+id/tvUsername"
+                    android:id="@+id/tv_catascan_label"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
@@ -67,7 +67,7 @@
                     app:layout_constraintEnd_toEndOf="parent"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toBottomOf="@id/ivProfileImage"
-                    tools:text="John Doe" />
+                    tools:text="CataScan" />
 
 
             </androidx.constraintlayout.widget.ConstraintLayout>
